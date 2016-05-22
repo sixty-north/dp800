@@ -14,7 +14,6 @@ def compile_pattern(pattern):
     while True:
         match = ABBREVIATION.search(pattern)
         if not match:
-            print(pattern)
             return re.compile(pattern)
         prefix, suffix = match.groups()
         pattern = pattern.replace(match.group(0), abbreviation_pattern(prefix, suffix), 1)
