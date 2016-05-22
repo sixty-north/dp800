@@ -1,4 +1,8 @@
 import pytest
+from decimal import Decimal
+
+from hypothesis import given
+from hypothesis.strategies import floats, data, sampled_from, integers
 
 from dp800.dp800 import DP832
 
@@ -40,9 +44,27 @@ def test_channel_is_on_on(instrument):
         channel.is_on = True
         assert channel.is_on
 
+
 def test_channel_is_on_off(instrument):
     for channel_id in instrument.channel_ids:
         channel = instrument.channel(channel_id)
         channel.is_on = False
         assert not channel.is_on
 
+
+@given(data=data())
+def test_set_voltage_setpoint(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    voltage = data.draw(floats(channel.voltage.over_min, channel.voltage.over_max).map(lambda v: round(v, 3)))
+    channel.voltage.setpoint = voltage
+    assert channel.voltage.setpoint == voltage
+
+
+@given(data=data())
+def test_set_current_setpoint(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    current = data.draw(floats(channel.current.over_min, channel.current.over_max).map(lambda v: round(v, 3)))
+    channel.current.setpoint = current
+    assert channel.current.setpoint == current

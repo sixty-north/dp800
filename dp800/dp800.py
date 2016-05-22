@@ -143,19 +143,28 @@ class Quantity:
         self._over_max = over_max
 
     @property
+    def channel(self):
+        return self._channel
+
+    @property
     def setpoint(self):
-        response = self._channel._query('SOURCE{}:{}:IMMEDIATE?', self._channel._id, self._name.upper())
+        response = self._channel._query(':SOURCE{channel}:{quantity}:IMMEDIATE?',
+                                        channel=self.channel.id,
+                                        quantity=self._name.upper())
         try:
             return float(response)
         except ValueError as e:
-            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self._channel._id, response)) from e
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self.channel.id, response)) from e
 
     @setpoint.setter
     def setpoint(self, value):
         if not (self._over_min <= value <= self._over_max):
-            raise ValueError("{} {} A outside range {} A to {} A".format(
-                self._name.title(), value, self._over_min, self._over_max))
-        self._channel._write(':SOURCE{}:{}:IMMEDIATE {}', self._channel._id, self._name.upper(), value)
+            raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
+                name=self._name.title(), value=value, unit=self._unit, min=self._over_min, max=self._over_max))
+        self._channel._write(':SOURCE{channel}:{quantity}:IMMEDIATE {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
+                             channel=self.channel.id,
+                             quantity=self._name.upper(),
+                             value=value)
 
     @property
     def over_min(self):
