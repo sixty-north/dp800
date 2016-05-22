@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from enum import Enum
-from itertools import count
 
 
 class DP832:
@@ -80,35 +79,17 @@ class Channel:
 
     def __init__(self, device, channel_id, over_voltage_min, over_voltage_max, over_current_min, over_current_max):
         self._device = device
-        self._channel_id = channel_id
-        self._over_voltage_min = over_voltage_min
-        self._over_voltage_max = over_voltage_max
-        self._over_current_min = over_current_min
-        self._over_current_max = over_current_max
+        self._id = channel_id
+        self._voltage = Quantity(self, 'voltage', 'V', over_voltage_min, over_voltage_max)
+        self._current = Quantity(self, 'current', 'A', over_current_min, over_current_max)
 
     @property
     def device(self):
         return self._device
 
     @property
-    def channel_id(self):
-        return self._channel_id
-
-    @property
-    def over_voltage_min(self):
-        return self._over_voltage_min
-
-    @property
-    def over_voltage_max(self):
-        return self._over_voltage_max
-
-    @property
-    def over_current_min(self):
-        return self._over_current_min
-
-    @property
-    def over_current_max(self):
-        return self._over_current_max
+    def id(self):
+        return self._id
 
     def _write(self, command, *args, **kwargs):
         return self._device.write(command, *args, **kwargs)
@@ -118,7 +99,7 @@ class Channel:
 
     @property
     def is_on(self):
-        response = self._query('OUTPUT:STATE? CH{}', self._channel_id)
+        response = self._query(':OUTPUT:STATE? CH{}', self._id)
         try:
             return from_boolean_response(response)
         except ValueError as e:
@@ -127,7 +108,7 @@ class Channel:
     @is_on.setter
     def is_on(self, value):
         state = to_boolean(value)
-        self._write('OUTPUT:STATE CH{},{}', self._channel_id, state)
+        self._write(':OUTPUT:STATE CH{},{}', self._id, state)
 
     def on(self):
         self.is_on = True
@@ -136,42 +117,54 @@ class Channel:
         self.is_on = False
 
     @property
+    def voltage(self):
+        return self._voltage
+
+    @property
+    def current(self):
+        return self._current
+
+    @property
     def mode(self):
-        response = self._query('OUTPUT:MODE? CH{}', self._channel_id)
+        response = self._query('OUTPUT:MODE? CH{}', self._id)
         try:
             return ChannelMode.from_response(response)
         except ValueError as e:
             raise RuntimeError("Unexpected response: {!r}".format(response)) from e
 
+
+class Quantity:
+
+    def __init__(self, channel, name, unit, over_min, over_max):
+        self._channel = channel
+        self._name = name
+        self._unit = unit
+        self._over_min = over_min
+        self._over_max = over_max
+
     @property
-    def voltage_setpoint(self):
-        response = self._query('SOURCE{}:VOLTAGE:IMMEDIATE?', self._channel_id)
+    def setpoint(self):
+        response = self._channel._query('SOURCE{}:{}:IMMEDIATE?', self._channel._id, self._name.upper())
         try:
             return float(response)
         except ValueError as e:
-            raise RuntimeError("Unexpected response: {!r}".format(response)) from e
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self._channel._id, response)) from e
 
-    @voltage_setpoint.setter
-    def voltage_setpoint(self, value):
-        if not (self.over_voltage_min <= value <= self.over_voltage_max):
-            raise ValueError("Voltage {} V outside range {} V to {} V".format(
-                value, self.over_voltage_min, self.over_voltage_max))
-        self._write(':SOURCE{}:VOLTAGE:IMMEDIATE {}', self._channel_id, value)
+    @setpoint.setter
+    def setpoint(self, value):
+        if not (self._over_min <= value <= self._over_max):
+            raise ValueError("{} {} A outside range {} A to {} A".format(
+                self._name.title(), value, self._over_min, self._over_max))
+        self._channel._write(':SOURCE{}:{}:IMMEDIATE {}', self._channel._id, self._name.upper(), value)
 
     @property
-    def current_setpoint(self):
-        response = self._query('SOURCE{}:CURRENT:IMMEDIATE?', self._channel_id)
-        try:
-            return float(response)
-        except ValueError as e:
-            raise RuntimeError("Unexpected response: {!r}".format(response)) from e
+    def over_min(self):
+        return self._over_min
 
-    @current_setpoint.setter
-    def current_setpoint(self, value):
-        if not (self.over_current_min <= value <= self.over_current_max):
-            raise ValueError("Current {} A outside range {} A to {} A".format(
-                value, self.over_voltage_min, self.over_voltage_max))
-        self._write(':SOURCE{}:CURRENT:IMMEDIATE {}', self._channel_id, value)
+    @property
+    def over_max(self):
+        return self._over_max
+
 
 if __name__ == '__main__':
     import visa
@@ -185,5 +178,5 @@ if __name__ == '__main__':
         print("mode  = ", channel.mode)
         channel.on()
         print("is_on    = ", channel.is_on)
-        channel.voltage_setpoint = channel_id
-        print("voltage_setpoint =", channel.voltage_setpoint)
+        channel.voltage.setpoint = channel_id
+        print("voltage.setpoint =", channel.voltage.setpoint)
