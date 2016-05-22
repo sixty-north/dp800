@@ -32,3 +32,17 @@ def test_channel_off(instrument):
         channel = instrument.channel(channel_id)
         channel.off()
         assert not channel.is_on
+
+
+def test_channel_is_on_on(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.is_on = True
+        assert channel.is_on
+
+def test_channel_is_on_off(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.is_on = False
+        assert not channel.is_on
+
