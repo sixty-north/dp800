@@ -75,6 +75,28 @@ def to_boolean(value):
         raise ValueError("Invalid boolean value {!r}".format(value)) from e
 
 
+class Quantity:
+
+    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max):
+        self._channel = channel
+        self._name = name
+        self._unit = unit
+        self._setpoint = SetPoint(self)
+        self._protection = Protection(self, over_quantity_min, over_quantity_max)
+
+    @property
+    def channel(self):
+        return self._channel
+
+    @property
+    def setpoint(self):
+        return self._setpoint
+
+    @property
+    def protection(self) -> 'Protection':
+        return self._protection
+
+
 class Channel:
 
     def __init__(self, device, channel_id, over_voltage_min, over_voltage_max, over_current_min, over_current_max):
@@ -117,11 +139,11 @@ class Channel:
         self.is_on = False
 
     @property
-    def voltage(self):
+    def voltage(self) -> Quantity:
         return self._voltage
 
     @property
-    def current(self):
+    def current(self) -> Quantity:
         return self._current
 
     @property
@@ -133,46 +155,142 @@ class Channel:
             raise RuntimeError("Unexpected response: {!r}".format(response)) from e
 
 
-class Quantity:
 
-    def __init__(self, channel, name, unit, over_min, over_max):
-        self._channel = channel
-        self._name = name
-        self._unit = unit
-        self._over_min = over_min
-        self._over_max = over_max
 
-    @property
-    def channel(self):
-        return self._channel
+class SetPoint:
+
+    def __init__(self, quantity):
+        self._quantity = quantity
+
+    def quantity(self) -> Quantity:
+        return self._quantity
 
     @property
-    def setpoint(self):
-        response = self._channel._query(':SOURCE{channel}:{quantity}:IMMEDIATE?',
-                                        channel=self.channel.id,
-                                        quantity=self._name.upper())
+    def level(self):
+        quantity = self._quantity
+        response = quantity._channel._query(':SOURCE{channel}:{quantity}:IMMEDIATE?',
+                                            channel=quantity._channel.id,
+                                            quantity=quantity._name.upper())
         try:
             return float(response)
         except ValueError as e:
-            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self.channel.id, response)) from e
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(quantity._name.lower(), quantity.channel.id, response)) from e
 
-    @setpoint.setter
-    def setpoint(self, value):
-        if not (self._over_min <= value <= self._over_max):
+    @level.setter
+    def level(self, value):
+        quantity = self._quantity
+        if not (quantity.protection.min <= value <= quantity.protection.max):
             raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
-                name=self._name.title(), value=value, unit=self._unit, min=self._over_min, max=self._over_max))
-        self._channel._write(':SOURCE{channel}:{quantity}:IMMEDIATE {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
-                             channel=self.channel.id,
-                             quantity=self._name.upper(),
-                             value=value)
+                name=quantity._name.title(), value=value, unit=quantity._unit, min=quantity.protection.min, max=quantity.protection.max))
+        quantity._channel._write(':SOURCE{channel}:{quantity}:IMMEDIATE {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
+                                 channel=quantity._channel.id,
+                                 quantity=quantity._name.upper(),
+                                 value=value)
 
     @property
-    def over_min(self):
-        return self._over_min
+    def step(self):
+        quantity = self._quantity
+        response = quantity._channel._query(':SOURCE{channel}:{quantity}:STEP?',
+                                            channel=quantity._channel.id,
+                                            quantity=quantity._name.upper())
+        try:
+            return float(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(quantity._name.lower(), quantity.channel.id, response)) from e
+
+    @step.setter
+    def step(self, value):
+        quantity = self._quantity
+        if not (quantity.protection.min <= value <= quantity.protection.max):
+            raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
+                name=quantity._name.title(), value=value, unit=quantity._unit, min=quantity.protection.min, max=quantity.protection.max))
+        quantity._channel._write(':SOURCE{channel}:{quantity}:STEP {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
+                                 channel=quantity._channel.id,
+                                 quantity=quantity._name.upper(),
+                                 value=value)
+
+
+class Protection:
+
+    def __init__(self, quantity, over_quantity_min, over_quantity_max):
+        self._quantity = quantity
+        self._min = over_quantity_min
+        self._max = over_quantity_max
+
+    def quantity(self) -> Quantity:
+        return self._quantity
 
     @property
-    def over_max(self):
-        return self._over_max
+    def min(self):
+        return self._min
+
+    @property
+    def max(self):
+        return self._max
+
+    @property
+    def has_tripped(self):
+        response = self._quantity._channel._query(':SOURCE{channel}:{quantity}:PROTECTION:TRIPPED?',
+                                                  channel=self._quantity._channel.id,
+                                                  quantity=self._quantity._name.upper())
+        try:
+            return from_boolean_response(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response: {!r}") from e
+
+    @property
+    def is_enabled(self):
+        response = self._quantity._channel._query(':SOURCE{channel}:{quantity}:PROTECTION:STATE?',
+                                                  channel=self._quantity._channel.id,
+                                                  quantity=self._quantity._name.upper())
+        try:
+            return from_boolean_response(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response: {!r}") from e
+
+    @is_enabled.setter
+    def is_enabled(self, value):
+        state = to_boolean(value)
+        quantity = self._quantity
+        quantity._channel._query(':SOURCE{channel}:{quantity}:PROTECTION:STATE {state}',
+                                 channel=quantity._channel.id,
+                                 quantity=quantity._name.upper(),
+                                 state=state)
+
+    def enable(self):
+        self.is_enabled = True
+
+    def disable(self):
+        self.is_enabled = False
+
+    def clear(self):
+        quantity = self._quantity
+        quantity._channel._query(':SOURCE{channel}:{quantity}:PROTECTION:CLEAR',
+                                 channel=quantity._channel.id,
+                                 quantity=quantity._name.upper())
+
+    @property
+    def level(self):
+        quantity = self._quantity
+        response = quantity._channel._query(':SOURCE{channel}:{quantity}:PROTECTION?',
+                                            channel=quantity._channel.id,
+                                            quantity=quantity._name.upper())
+        try:
+            return float(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(
+                quantity._name.lower(), quantity._channel.id, response)) from e
+
+    @level.setter
+    def level(self, value):
+        quantity = self._quantity
+        if not (quantity.protection.min <= value <= quantity.protection.max):
+            raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
+                name=quantity._name.title(), value=value, unit=quantity._unit, min=quantity.protection.min, max=quantity.protection.max))
+        quantity._channel._write(':SOURCE{channel}:{quantity}:PROTECTION {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
+                                 channel=quantity._channel.id,
+                                 quantity=quantity._name.upper(),
+                                 value=value)
 
 
 if __name__ == '__main__':
@@ -187,5 +305,5 @@ if __name__ == '__main__':
         print("mode  = ", channel.mode)
         channel.on()
         print("is_on    = ", channel.is_on)
-        channel.voltage.setpoint = channel_id
-        print("voltage.setpoint =", channel.voltage.setpoint)
+        channel.voltage.level = channel_id
+        print("voltage.level =", channel.voltage.level)

@@ -53,18 +53,38 @@ def test_channel_is_on_off(instrument):
 
 
 @given(data=data())
-def test_set_voltage_setpoint(instrument, data):
+def test_set_voltage_setpoint_level(instrument, data):
     channel_id = data.draw(sampled_from(instrument.channel_ids))
     channel = instrument.channel(channel_id)
-    voltage = data.draw(floats(channel.voltage.over_min, channel.voltage.over_max).map(lambda v: round(v, 3)))
-    channel.voltage.setpoint = voltage
-    assert channel.voltage.setpoint == voltage
+    voltage = data.draw(
+        floats(channel.voltage.protection.min, channel.voltage.protection.max).map(
+            lambda v: round(v, 3)))
+    channel.voltage.level = voltage
+    assert channel.voltage.level == voltage
 
 
 @given(data=data())
-def test_set_current_setpoint(instrument, data):
+def test_set_current_setpoint_level(instrument, data):
     channel_id = data.draw(sampled_from(instrument.channel_ids))
     channel = instrument.channel(channel_id)
-    current = data.draw(floats(channel.current.over_min, channel.current.over_max).map(lambda v: round(v, 3)))
-    channel.current.setpoint = current
-    assert channel.current.setpoint == current
+    current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
+    channel.current.level = current
+    assert channel.current.level == current
+
+
+@given(data=data())
+def test_set_voltage_protection_level(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    voltage = data.draw(floats(channel.voltage.protection.min, channel.voltage.protection.max).map(lambda v: round(v, 3)))
+    channel.voltage.protection.level = voltage
+    assert channel.voltage.protection.level == voltage
+
+
+@given(data=data())
+def test_set_current_protection_level(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
+    channel.current.protection.level = current
+    assert channel.current.protection.level == current
