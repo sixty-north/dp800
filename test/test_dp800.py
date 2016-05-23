@@ -2,7 +2,7 @@ import pytest
 from decimal import Decimal
 
 from hypothesis import given
-from hypothesis.strategies import floats, data, sampled_from, integers
+from hypothesis.strategies import floats, data, sampled_from
 
 from dp800.dp800 import DP832
 
@@ -88,3 +88,59 @@ def test_set_current_protection_level(instrument, data):
     current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
     channel.current.protection.level = current
     assert channel.current.protection.level == current
+
+
+def test_voltage_protection_enabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.voltage.protection.enable()
+        assert channel.voltage.protection.is_enabled
+
+
+def test_voltage_protection_disabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.voltage.protection.disable()
+        assert not channel.voltage.protection.is_enabled
+
+
+def test_voltage_channel_is_enabled_enabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.voltage.protection.is_enabled = True
+        assert channel.voltage.protection.is_enabled
+
+
+def test_voltage_channel_is_enabled_disabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.voltage.protection.is_enabled = False
+        assert not channel.voltage.protection.is_enabled
+
+
+def test_current_protection_enabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.current.protection.enable()
+        assert channel.current.protection.is_enabled
+
+
+def test_current_protection_disabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.current.protection.disable()
+        assert not channel.current.protection.is_enabled
+
+
+def test_current_channel_is_enabled_enabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.current.protection.is_enabled = True
+        assert channel.current.protection.is_enabled
+
+
+def test_current_channel_is_enabled_disabled(instrument):
+    for channel_id in instrument.channel_ids:
+        channel = instrument.channel(channel_id)
+        channel.current.protection.is_enabled = False
+        assert not channel.current.protection.is_enabled
