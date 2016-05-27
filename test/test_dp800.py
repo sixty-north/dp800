@@ -75,6 +75,26 @@ def test_set_voltage_setpoint_step_increment(instrument, data):
 
 
 @given(data=data())
+def test_get_voltage_setpoint_step_default(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    assert channel.voltage.setpoint.step.default == 0.001
+
+
+@given(data=data())
+def test_reset_voltage_setpoint_step_default(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    increment = data.draw(
+        floats(channel.voltage.protection.min, channel.voltage.protection.max).map( # TODO: Experimentally determine maximum
+            lambda v: round(v, 3)))
+    default = channel.voltage.setpoint.step.default
+    channel.voltage.setpoint.step.increment = increment
+    channel.voltage.setpoint.step.reset()
+    assert channel.voltage.setpoint.step.increment == default
+
+
+@given(data=data())
 def test_set_current_setpoint_level(instrument, data):
     channel_id = data.draw(sampled_from(instrument.channel_ids))
     channel = instrument.channel(channel_id)
@@ -111,6 +131,22 @@ def test_set_current_protection_level(instrument, data):
     channel.current.protection.level = current
     assert channel.current.protection.level == current
 
+
+@given(data=data())
+def test_voltage_measurement(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    voltage = data.draw(floats(channel.voltage.protection.min, channel.voltage.protection.max).map(lambda v: round(v, 3)))
+    instrument._inst._channel_voltage_measurements[channel_id] = voltage
+    assert channel.voltage.measurement == voltage
+
+@given(data=data())
+def test_current_measurement(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
+    instrument._inst._channel_current_measurements[channel_id] = current
+    assert channel.current.measurement == current
 
 def test_voltage_protection_enabled(instrument):
     for channel_id in instrument.channel_ids:

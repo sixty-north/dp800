@@ -154,6 +154,16 @@ class Quantity:
     def protection(self) -> 'Protection':
         return self._protection
 
+    @property
+    def measurement(self):
+        response = self._channel._query(':MEASURE:{quantity}? CH{channel}',
+                                            channel=self._channel.id,
+                                            quantity=self._name.upper())
+        try:
+            return float(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self.channel.id, response)) from e
+
 
 class SetPoint:
 
@@ -213,7 +223,7 @@ class Step:
 
     @property
     def increment(self):
-        quantity = self._setpoint.quantity
+        quantity = self.setpoint.quantity
         response = quantity.channel._query(':SOURCE{channel}:{quantity}:STEP?',
                                             channel=quantity.channel.id,
                                             quantity=quantity._name.upper())
@@ -224,7 +234,7 @@ class Step:
 
     @increment.setter
     def increment(self, value):
-        quantity = self._setpoint._quantity
+        quantity = self.setpoint._quantity
         if not (quantity.protection.min <= value <= quantity.protection.max):
             raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
                 name=quantity._name.title(), value=value, unit=quantity._unit, min=quantity.protection.min, max=quantity.protection.max))
@@ -232,6 +242,23 @@ class Step:
                                  channel=quantity.channel.id,
                                  quantity=quantity._name.upper(),
                                  value=value)
+
+    @property
+    def default(self):
+        quantity = self.setpoint.quantity
+        response = quantity.channel._query(':SOURCE{channel}:{quantity}:STEP? DEFAULT',
+                                            channel=quantity.channel.id,
+                                            quantity=quantity._name.upper())
+        try:
+            return float(response)
+        except ValueError as e:
+            raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(quantity._name.lower(), quantity.channel.id, response)) from e
+
+    def reset(self):
+        quantity = self.setpoint.quantity
+        quantity._channel._write(':SOURCE{channel}:{quantity}:STEP DEFAULT',
+                                 channel=quantity.channel.id,
+                                 quantity=quantity._name.upper())
 
 
 class Protection:

@@ -17,6 +17,8 @@ class FakeVisaDP832:
         self._channel_voltage_protection_states = [None, 'OFF', 'OFF', 'OFF']
         self._channel_current_protection_states = [None, 'OFF', 'OFF', 'OFF']
         self._channel_voltage_setpoint_step = [None, 0.001, 0.001, 0.001]
+        self._channel_voltage_measurements = [None, 0, 0, 0]
+        self._channel_current_measurements = [None, 0, 0, 0]
 
     def write(self, command):
         self.query(command)
@@ -55,8 +57,10 @@ class FakeVisaDP832:
         channel_index = int(channel)
         return str(self._channel_current_setpoint_levels[channel_index]) + '\n'
 
-    def _voltage_setpoint_step_command(self, channel, increment):
+    def _voltage_setpoint_step_command(self, channel, value):
         channel_index = int(channel)
+        is_default = 'DEFAULT'.startswith(value)
+        increment = self._voltage_setpoint_step_default if is_default else float(value)
         self._channel_voltage_setpoint_step[channel_index] = float(increment)
 
     def _voltage_setpoint_step_query(self, channel, default):
@@ -109,6 +113,14 @@ class FakeVisaDP832:
         channel_index = int(channel)
         return self._channel_current_protection_states[channel_index] + '\n'
 
+    def _voltage_measurement_query(self, channel):
+        channel_index = int(channel)
+        return "{:.3f}\n".format(self._channel_voltage_measurements[channel_index])
+
+    def _current_measurement_query(self, channel):
+        channel_index = int(channel)
+        return "{:.3f}\n".format(self._channel_current_measurements[channel_index])
+
 IDN_QUERY                        = compile_pattern(r'\*IDN\?')
 OUTPUT_STATE_COMMAND             = compile_pattern(r':%OUTPut%(?::%STATe%)? CH(\d+),(ON|OFF)')
 OUTPUT_STATE_QUERY               = compile_pattern(r':%OUTPut%(?::%STATe%)?\? CH(\d+)')
@@ -128,6 +140,8 @@ VOLTAGE_PROTECTION_STATE_COMMAND = compile_pattern(r':%SOURce%(\d+):%VOLTage%:%P
 VOLTAGE_PROTECTION_STATE_QUERY   = compile_pattern(r':%SOURce%(\d+):%VOLTage%:%PROTection%:%STATe%\?')
 CURRENT_PROTECTION_STATE_COMMAND = compile_pattern(r':%SOURce%(\d+):%CURRent%:%PROTection%:%STATe% (ON|OFF)')
 CURRENT_PROTECTION_STATE_QUERY   = compile_pattern(r':%SOURce%(\d+):%CURRent%:%PROTection%:%STATe%\?')
+VOLTAGE_MEASUREMENT_QUERY        = compile_pattern(r':%MEASure%:%VOLTage%(?::DC)?\? CH(\d+)')
+CURRENT_MEASUREMENT_QUERY        = compile_pattern(r':%MEASure%:%CURRent%(?::DC)?\? CH(\d+)')
 
 ACTIONS = (
     (IDN_QUERY, FakeVisaDP832._id_query),
@@ -149,4 +163,6 @@ ACTIONS = (
     (VOLTAGE_PROTECTION_STATE_QUERY, FakeVisaDP832._voltage_protection_state_query),
     (CURRENT_PROTECTION_STATE_COMMAND, FakeVisaDP832._current_protection_state_command),
     (CURRENT_PROTECTION_STATE_QUERY, FakeVisaDP832._current_protection_state_query),
+    (VOLTAGE_MEASUREMENT_QUERY, FakeVisaDP832._voltage_measurement_query),
+    (CURRENT_MEASUREMENT_QUERY, FakeVisaDP832._current_measurement_query),
 )
