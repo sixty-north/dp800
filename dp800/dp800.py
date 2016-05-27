@@ -11,9 +11,9 @@ class DP832:
         self._inst = instrument
 
         self._channels = OrderedDict([
-            (1, Channel(self, 1, over_voltage_min=0.001, over_voltage_max=33.000, over_current_min=0.001, over_current_max=3.300)),
-            (2, Channel(self, 2, over_voltage_min=0.001, over_voltage_max=33.000, over_current_min=0.001, over_current_max=3.300)),
-            (3, Channel(self, 3, over_voltage_min=0.001, over_voltage_max=5.500,  over_current_min=0.001, over_current_max=3.300))])
+            (1, Channel(self, 1, over_voltage_min=0.001, over_voltage_max=33.000, over_current_min=0.001, over_current_max=3.300, step_min=0.001, step_max=1.000)), # Check step_max!
+            (2, Channel(self, 2, over_voltage_min=0.001, over_voltage_max=33.000, over_current_min=0.001, over_current_max=3.300, step_min=0.001, step_max=1.000)),
+            (3, Channel(self, 3, over_voltage_min=0.001, over_voltage_max=5.500,  over_current_min=0.001, over_current_max=3.300, step_min=0.001, step_max=1.000))])
 
     @property
     def channel_ids(self):
@@ -75,35 +75,13 @@ def to_boolean(value):
         raise ValueError("Invalid boolean value {!r}".format(value)) from e
 
 
-class Quantity:
-
-    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max):
-        self._channel = channel
-        self._name = name
-        self._unit = unit
-        self._setpoint = SetPoint(self)
-        self._protection = Protection(self, over_quantity_min, over_quantity_max)
-
-    @property
-    def channel(self):
-        return self._channel
-
-    @property
-    def setpoint(self):
-        return self._setpoint
-
-    @property
-    def protection(self) -> 'Protection':
-        return self._protection
-
-
 class Channel:
 
-    def __init__(self, device, channel_id, over_voltage_min, over_voltage_max, over_current_min, over_current_max):
+    def __init__(self, device, channel_id, over_voltage_min, over_voltage_max, over_current_min, over_current_max, step_min, step_max):
         self._device = device
         self._id = channel_id
-        self._voltage = Quantity(self, 'voltage', 'V', over_voltage_min, over_voltage_max)
-        self._current = Quantity(self, 'current', 'A', over_current_min, over_current_max)
+        self._voltage = Quantity(self, 'voltage', 'V', over_voltage_min, over_voltage_max, step_min, step_max)
+        self._current = Quantity(self, 'current', 'A', over_current_min, over_current_max, step_min, step_max)
 
     @property
     def device(self):
@@ -139,11 +117,11 @@ class Channel:
         self.is_on = False
 
     @property
-    def voltage(self) -> Quantity:
+    def voltage(self) -> 'Quantity':
         return self._voltage
 
     @property
-    def current(self) -> Quantity:
+    def current(self) -> 'Quantity':
         return self._current
 
     @property
@@ -155,12 +133,33 @@ class Channel:
             raise RuntimeError("Unexpected response: {!r}".format(response)) from e
 
 
+class Quantity:
+
+    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max, step_min, step_max):
+        self._channel = channel
+        self._name = name
+        self._unit = unit
+        self._setpoint = SetPoint(self, step_min, step_max)
+        self._protection = Protection(self, over_quantity_min, over_quantity_max)
+
+    @property
+    def channel(self) -> Channel:
+        return self._channel
+
+    @property
+    def setpoint(self) -> 'SetPoint':
+        return self._setpoint
+
+    @property
+    def protection(self) -> 'Protection':
+        return self._protection
 
 
 class SetPoint:
 
-    def __init__(self, quantity):
+    def __init__(self, quantity, step_min, step_max):
         self._quantity = quantity
+        self._step = Step(self, step_min, step_max)
 
     def quantity(self) -> Quantity:
         return self._quantity
@@ -189,6 +188,29 @@ class SetPoint:
 
     @property
     def step(self):
+        return self._step
+
+
+class Step:
+
+    def __init__(self, quantity, step_min, step_max):
+        self._quantity = quantity
+        self._min = step_min
+        self._max = step_max
+
+    def quantity(self) -> Quantity:
+        return self._quantity
+
+    @property
+    def min(self):
+        return self._min
+
+    @property
+    def max(self):
+        return self._max
+
+    @property
+    def step(self):
         quantity = self._quantity
         response = quantity._channel._query(':SOURCE{channel}:{quantity}:STEP?',
                                             channel=quantity._channel.id,
@@ -208,7 +230,6 @@ class SetPoint:
                                  channel=quantity._channel.id,
                                  quantity=quantity._name.upper(),
                                  value=value)
-
 
 class Protection:
 
