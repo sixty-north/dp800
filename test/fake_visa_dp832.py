@@ -4,11 +4,13 @@ from test.patterns import compile_pattern
 class FakeVisaDP832:
 
     def __init__(self):
+        self._voltage_setpoint_step_default = 0.001
+        self._current_setpoint_step_default = 0.001
         self._channel_states = [None, 'OFF', 'OFF', 'OFF']
         self._channel_voltage_setpoint_levels = [None, 0.0, 0.0, 0.0]
         self._channel_current_setpoint_levels = [None, 0.0, 0.0, 0.0]
-        self._voltage_setpoint_step_default = 0.001
         self._channel_voltage_setpoint_step = [None] + [self._voltage_setpoint_step_default] * 3
+        self._channel_current_setpoint_step = [None] + [self._current_setpoint_step_default] * 3
         self._channel_current_setpoint_step = [None, 0.001, 0.001, 0.001]
         self._channel_voltage_protection_levels = [None, 33.0, 33.0, 5.5]
         self._channel_current_protection_levels = [None, 3.3, 3.3, 3.3]  # Check!
@@ -63,6 +65,16 @@ class FakeVisaDP832:
         increment = self._voltage_setpoint_step_default if is_default else self._channel_voltage_setpoint_step[channel_index]
         return str(increment) + '\n'
 
+    def _current_setpoint_step_command(self, channel, increment):
+        channel_index = int(channel)
+        self._channel_current_setpoint_step[channel_index] = float(increment)
+
+    def _current_setpoint_step_query(self, channel, default):
+        channel_index = int(channel)
+        is_default = default and 'DEFAULT'.startswith(default)
+        increment = self._current_setpoint_step_default if is_default else self._channel_current_setpoint_step[channel_index]
+        return str(increment) + '\n'
+
     def _voltage_protection_level_command(self, channel, voltage):
         channel_index = int(channel)
         self._channel_voltage_protection_levels[channel_index] = float(voltage)
@@ -106,6 +118,8 @@ CURRENT_SETPOINT_LEVEL_COMMAND   = compile_pattern(r':%SOURce%(\d+):%CURRent%(?:
 CURRENT_SETPOINT_LEVEL_QUERY     = compile_pattern(r':%SOURce%(\d+):%CURRent%(?::%LEVel%)?(?::%IMMediate%)?(?::%AMPLitude%)?\?')
 VOLTAGE_SETPOINT_STEP_COMMAND    = compile_pattern(r':%SOURce%(\d+):%VOLTage%(?::%LEVel%)?(?::%IMMediate%)?:%STEP%(?::%INCRement%)? ((?:\d+\.\d+)|%DEFault%)')
 VOLTAGE_SETPOINT_STEP_QUERY      = compile_pattern(r':%SOURce%(\d+):%VOLTage%(?::%LEVel%)?(?::%IMMediate%)?:%STEP%(?::%INCRement%)?\?(?: (%DEFault%))?')
+CURRENT_SETPOINT_STEP_COMMAND    = compile_pattern(r':%SOURce%(\d+):%CURRent%(?::%LEVel%)?(?::%IMMediate%)?:%STEP%(?::%INCRement%)? ((?:\d+\.\d+)|%DEFault%)')
+CURRENT_SETPOINT_STEP_QUERY      = compile_pattern(r':%SOURce%(\d+):%CURRent%(?::%LEVel%)?(?::%IMMediate%)?:%STEP%(?::%INCRement%)?\?(?: (%DEFault%))?')
 VOLTAGE_PROTECTION_LEVEL_COMMAND = compile_pattern(r':%SOURce%(\d+):%VOLTage%:%PROTection%(?::%LEVel%)? ((?:\d+\.\d+)|MIN|MAX)')
 VOLTAGE_PROTECTION_LEVEL_QUERY   = compile_pattern(r':%SOURce%(\d+):%VOLTage%:%PROTection%(?::%LEVel%)?\?(?: (MIN|MAX))?')
 CURRENT_PROTECTION_LEVEL_COMMAND = compile_pattern(r':%SOURce%(\d+):%CURRent%:%PROTection%(?::%LEVel%)? ((?:\d+\.\d+)|MIN|MAX)')
@@ -125,6 +139,8 @@ ACTIONS = (
     (CURRENT_SETPOINT_LEVEL_QUERY, FakeVisaDP832._current_setpoint_level_query),
     (VOLTAGE_SETPOINT_STEP_COMMAND, FakeVisaDP832._voltage_setpoint_step_command),
     (VOLTAGE_SETPOINT_STEP_QUERY, FakeVisaDP832._voltage_setpoint_step_query),
+    (CURRENT_SETPOINT_STEP_COMMAND, FakeVisaDP832._current_setpoint_step_command),
+    (CURRENT_SETPOINT_STEP_QUERY, FakeVisaDP832._current_setpoint_step_query),
     (VOLTAGE_PROTECTION_LEVEL_COMMAND, FakeVisaDP832._voltage_protection_level_command),
     (VOLTAGE_PROTECTION_LEVEL_QUERY, FakeVisaDP832._voltage_protection_level_query),
     (CURRENT_PROTECTION_LEVEL_COMMAND, FakeVisaDP832._current_protection_level_command),

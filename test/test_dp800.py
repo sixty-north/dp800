@@ -73,6 +73,7 @@ def test_set_voltage_setpoint_step_increment(instrument, data):
     channel.voltage.setpoint.step.increment = increment
     assert channel.voltage.setpoint.step.increment == increment
 
+
 @given(data=data())
 def test_set_current_setpoint_level(instrument, data):
     channel_id = data.draw(sampled_from(instrument.channel_ids))
@@ -80,6 +81,17 @@ def test_set_current_setpoint_level(instrument, data):
     current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
     channel.current.setpoint.level = current
     assert channel.current.setpoint.level == current
+
+
+@given(data=data())
+def test_set_current_setpoint_step_increment(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    increment = data.draw(
+        floats(channel.current.protection.min, channel.current.protection.max).map( # TODO: Experimentally determine maximum
+            lambda v: round(v, 3)))
+    channel.current.setpoint.step.increment = increment
+    assert channel.current.setpoint.step.increment == increment
 
 
 @given(data=data())
