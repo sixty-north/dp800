@@ -161,6 +161,7 @@ class SetPoint:
         self._quantity = quantity
         self._step = Step(self, step_min, step_max)
 
+    @property
     def quantity(self) -> Quantity:
         return self._quantity
 
@@ -193,13 +194,14 @@ class SetPoint:
 
 class Step:
 
-    def __init__(self, quantity, step_min, step_max):
-        self._quantity = quantity
+    def __init__(self, setpoint, step_min, step_max):
+        self._setpoint = setpoint
         self._min = step_min
         self._max = step_max
 
-    def quantity(self) -> Quantity:
-        return self._quantity
+    @property
+    def setpoint(self) -> SetPoint:
+        return self._setpoint
 
     @property
     def min(self):
@@ -210,26 +212,27 @@ class Step:
         return self._max
 
     @property
-    def step(self):
-        quantity = self._quantity
-        response = quantity._channel._query(':SOURCE{channel}:{quantity}:STEP?',
-                                            channel=quantity._channel.id,
+    def increment(self):
+        quantity = self._setpoint.quantity
+        response = quantity.channel._query(':SOURCE{channel}:{quantity}:STEP?',
+                                            channel=quantity.channel.id,
                                             quantity=quantity._name.upper())
         try:
             return float(response)
         except ValueError as e:
             raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(quantity._name.lower(), quantity.channel.id, response)) from e
 
-    @step.setter
-    def step(self, value):
-        quantity = self._quantity
+    @increment.setter
+    def increment(self, value):
+        quantity = self._setpoint._quantity
         if not (quantity.protection.min <= value <= quantity.protection.max):
             raise ValueError("{name} {value} {unit} outside range {min} {unit} to {max} {unit}".format(
                 name=quantity._name.title(), value=value, unit=quantity._unit, min=quantity.protection.min, max=quantity.protection.max))
         quantity._channel._write(':SOURCE{channel}:{quantity}:STEP {value:.3f}',  # TODO: Variable precision depending on whether hi-res installed
-                                 channel=quantity._channel.id,
+                                 channel=quantity.channel.id,
                                  quantity=quantity._name.upper(),
                                  value=value)
+
 
 class Protection:
 
@@ -238,6 +241,7 @@ class Protection:
         self._min = over_quantity_min
         self._max = over_quantity_max
 
+    @property
     def quantity(self) -> Quantity:
         return self._quantity
 
