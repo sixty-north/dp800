@@ -121,6 +121,14 @@ class FakeVisaDP832:
         channel_index = int(channel)
         return "{:.3f}\n".format(self._channel_current_measurements[channel_index])
 
+    def _power_measurement_query(self, channel):
+        channel_index = int(channel)
+        voltage = self._channel_voltage_measurements[channel_index]
+        current = self._channel_current_measurements[channel_index]
+        power = round(voltage*current, 3)
+        return "{:.3f}\n".format(power)
+
+
 IDN_QUERY                        = compile_pattern(r'\*IDN\?')
 OUTPUT_STATE_COMMAND             = compile_pattern(r':%OUTPut%(?::%STATe%)? CH(\d+),(ON|OFF)')
 OUTPUT_STATE_QUERY               = compile_pattern(r':%OUTPut%(?::%STATe%)?\? CH(\d+)')
@@ -142,6 +150,7 @@ CURRENT_PROTECTION_STATE_COMMAND = compile_pattern(r':%SOURce%(\d+):%CURRent%:%P
 CURRENT_PROTECTION_STATE_QUERY   = compile_pattern(r':%SOURce%(\d+):%CURRent%:%PROTection%:%STATe%\?')
 VOLTAGE_MEASUREMENT_QUERY        = compile_pattern(r':%MEASure%:%VOLTage%(?::DC)?\? CH(\d+)')
 CURRENT_MEASUREMENT_QUERY        = compile_pattern(r':%MEASure%:%CURRent%(?::DC)?\? CH(\d+)')
+POWER_MEASUREMENT_QUERY          = compile_pattern(r':%MEASure%:%POWEr%(?::DC)?\? CH(\d+)')
 
 ACTIONS = (
     (IDN_QUERY, FakeVisaDP832._id_query),
@@ -165,4 +174,5 @@ ACTIONS = (
     (CURRENT_PROTECTION_STATE_QUERY, FakeVisaDP832._current_protection_state_query),
     (VOLTAGE_MEASUREMENT_QUERY, FakeVisaDP832._voltage_measurement_query),
     (CURRENT_MEASUREMENT_QUERY, FakeVisaDP832._current_measurement_query),
+    (POWER_MEASUREMENT_QUERY, FakeVisaDP832._power_measurement_query),
 )

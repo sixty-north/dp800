@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from collections import OrderedDict
 from enum import Enum
 
@@ -82,6 +83,7 @@ class Channel:
         self._id = channel_id
         self._voltage = Quantity(self, 'voltage', 'V', over_voltage_min, over_voltage_max, step_min, step_max)
         self._current = Quantity(self, 'current', 'A', over_current_min, over_current_max, step_min, step_max)
+        self._power = MeasurableQuantity(self, 'power', 'W')
 
     @property
     def device(self):
@@ -125,6 +127,10 @@ class Channel:
         return self._current
 
     @property
+    def power(self) -> 'MeasurableQuantity':
+        return self._power
+
+    @property
     def mode(self):
         response = self._query('OUTPUT:MODE? CH{}', self._id)
         try:
@@ -133,36 +139,72 @@ class Channel:
             raise RuntimeError("Unexpected response: {!r}".format(response)) from e
 
 
-class Quantity:
+class NamedQuantity:
 
-    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max, step_min, step_max):
+    def __init__(self, channel, name, unit, **kwargs):
+        assert len(kwargs) == 0
         self._channel = channel
         self._name = name
         self._unit = unit
-        self._setpoint = SetPoint(self, step_min, step_max)
-        self._protection = Protection(self, over_quantity_min, over_quantity_max)
 
     @property
     def channel(self) -> Channel:
         return self._channel
 
     @property
-    def setpoint(self) -> 'SetPoint':
-        return self._setpoint
+    def name(self):
+        return self._name
 
-    @property
-    def protection(self) -> 'Protection':
-        return self._protection
+
+class MeasurableQuantity(NamedQuantity):
+
+    def __init__(self, channel, name, unit, **kwargs):
+        super().__init__(channel=channel, name=name, unit=unit, **kwargs)
 
     @property
     def measurement(self):
-        response = self._channel._query(':MEASURE:{quantity}? CH{channel}',
-                                            channel=self._channel.id,
+        response = self.channel._query(':MEASURE:{quantity}? CH{channel}',
+                                            channel=self.channel.id,
                                             quantity=self._name.upper())
         try:
             return float(response)
         except ValueError as e:
             raise RuntimeError("Unexpected response to {} query on channel {} : {!r}".format(self._name.lower(), self.channel.id, response)) from e
+
+
+class ProtectableQuantity(NamedQuantity):
+
+    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max, **kwargs):
+        super().__init__(channel=channel, name=name, unit=unit, **kwargs)
+        self._protection = Protection(self, over_quantity_min, over_quantity_max)
+
+    @property
+    def protection(self) -> 'Protection':
+        return self._protection
+
+
+class AdjustableQuantity(NamedQuantity):
+
+    def __init__(self, channel, name, unit, step_min, step_max, **kwargs):
+        super().__init__(channel=channel, name=name, unit=unit, **kwargs)
+        self._setpoint = SetPoint(self, step_min, step_max)
+
+    @property
+    def setpoint(self) -> 'SetPoint':
+        return self._setpoint
+
+
+class Quantity(MeasurableQuantity, AdjustableQuantity, ProtectableQuantity):
+
+    def __init__(self, channel, name, unit, over_quantity_min, over_quantity_max, step_min, step_max):
+        super().__init__(
+            channel=channel,
+            name=name,
+            unit=unit,
+            over_quantity_min=over_quantity_min,
+            over_quantity_max=over_quantity_max,
+            step_min=step_min,
+            step_max=step_max)
 
 
 class SetPoint:

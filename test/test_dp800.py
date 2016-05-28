@@ -1,5 +1,4 @@
 import pytest
-from decimal import Decimal
 
 from hypothesis import given
 from hypothesis.strategies import floats, data, sampled_from
@@ -140,6 +139,7 @@ def test_voltage_measurement(instrument, data):
     instrument._inst._channel_voltage_measurements[channel_id] = voltage
     assert channel.voltage.measurement == voltage
 
+
 @given(data=data())
 def test_current_measurement(instrument, data):
     channel_id = data.draw(sampled_from(instrument.channel_ids))
@@ -147,6 +147,18 @@ def test_current_measurement(instrument, data):
     current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
     instrument._inst._channel_current_measurements[channel_id] = current
     assert channel.current.measurement == current
+
+
+@given(data=data())
+def test_power_measurement(instrument, data):
+    channel_id = data.draw(sampled_from(instrument.channel_ids))
+    channel = instrument.channel(channel_id)
+    voltage = data.draw(floats(channel.voltage.protection.min, channel.voltage.protection.max).map(lambda v: round(v, 3)))
+    current = data.draw(floats(channel.current.protection.min, channel.current.protection.max).map(lambda v: round(v, 3)))
+    instrument._inst._channel_voltage_measurements[channel_id] = voltage
+    instrument._inst._channel_current_measurements[channel_id] = current
+    assert channel.power.measurement == round(voltage*current, 3)
+
 
 def test_voltage_protection_enabled(instrument):
     for channel_id in instrument.channel_ids:
